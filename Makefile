@@ -1,12 +1,12 @@
-CC=gcc
-CFLAGS=-Wall -Werror -Wno-error=unused-variable
+CC=g++
+CFLAGS=-Wall -Werror -Wno-error=unused-variable -g
 
 build: server subscriber
 
-server: server.c common.c
+server: server.cpp common.cpp parser.cpp
 	$(CC) -o $@ $^ $(CFLAGS)
 
-subscriber: subscriber.c common.c
+subscriber: subscriber.cpp common.cpp parser.cpp
 	$(CC) -o $@ $^ $(CFLAGS)
 
 clean:
