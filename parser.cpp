@@ -15,24 +15,6 @@ int parse_by_whitespace(char *buf, char **argv)
 	return argc;
 }
 
-char *argv_to_string(char **argv, int start, int end)
-{
-	static char str[BUFSIZE];
-	strcpy(str, "");
-
-	if (start >= end)
-		return NULL;
-
-	strcpy(str, argv[start]);
-
-	for (int index = start + 1; index < end; ++index) {
-		strcat(str, " ");
-		strcat(str, argv[index]);
-	}
-
-	return str;
-}
-
 void print_int(char *buff, char *topic)
 {
 	int8_t sign = *buff;
@@ -60,6 +42,9 @@ void print_float(char *buff, char *topic)
 
 	float nr = ntohl(*(u_int32_t *)buff);
 	buff += sizeof(uint32_t);
+
+	if (sign)
+		nr = -nr;
 
 	int8_t pow10 = *buff;
 

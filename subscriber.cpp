@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <netinet/tcp.h>
 
 #include "parser.h"
 #include "common.h"
@@ -68,7 +69,7 @@ void subscriber(int sockfd, char *id)
             argc = parse_by_whitespace(buf, argv);
             if (!strcmp(argv[0], "exit")) {
                 if (argc != 1) {
-                    printf("\nWrong format for exit\n");
+                    // printf("\nWrong format for exit\n");
                 } else {
                     tcp_request_t request;
                     strcpy(request.id, id);
@@ -81,7 +82,7 @@ void subscriber(int sockfd, char *id)
 
             if (!strcmp(argv[0], "subscribe")) {
                 if (argc != 3) {
-                    printf("\nWrong format for subscribe\n");
+                    // printf("\nWrong format for subscribe\n");
                 } else {
                     tcp_request_t request;
                     strcpy(request.id, id);
@@ -97,7 +98,7 @@ void subscriber(int sockfd, char *id)
 
             if (!strcmp(argv[0], "unsubscribe")) {
                 if (argc != 2) {
-                    printf("\nWrong format for unsubscribe\n");
+                    // printf("\nWrong format for unsubscribe\n");
                 } else {
                     tcp_request_t request;
                     strcpy(request.id, id);
@@ -120,6 +121,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+
     uint16_t server_port;
     int rc = sscanf(argv[3], "%hu", &server_port);
     DIE(rc != 1, "sscanf() failed");
@@ -130,6 +133,10 @@ int main(int argc, char *argv[])
 
     struct sockaddr_in serv_addr;
     socklen_t socket_len = sizeof(struct sockaddr_in);
+
+    int enable = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR | TCP_NODELAY, &enable, sizeof(int));
+    DIE(sockfd < 0, "setsockopt() failed");
 
     memset(&serv_addr, 0, socket_len);
     serv_addr.sin_family = AF_INET;

@@ -14,6 +14,9 @@ int recv_all(int sockfd, void *buffer, size_t len) {
 		int rc = recv(sockfd, buff + bytes_received, bytes_remaining, 0);
 		DIE(rc == -1, "recv() failed");
 
+		if (!rc)
+			return 0;
+
 		bytes_received += rc;
 		bytes_remaining -= rc;
   	}

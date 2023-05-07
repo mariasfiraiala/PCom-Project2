@@ -16,9 +16,11 @@
 
 #include "common.h"
 #include "utils.h"
+#include "parser.h"
 
 std::map<std::string, tcp_client_t *> ids;
 std::map<std::string, std::vector<tcp_client_t *>> topics;
+std::map<int, std::pair<in_addr, uint16_t>> ips_ports;
 
 void send_message(stored_message_t *message, int fd)
 {
@@ -27,20 +29,17 @@ void send_message(stored_message_t *message, int fd)
 }
 
 void server(int listenfd, int udp_cli_fd) {
-    struct pollfd poll_fds[MAX_CONNECTIONS];
-    int num_clients = 2;
+    std::vector<struct pollfd> poll_fds;
 
-    poll_fds[0].fd = listenfd;
-    poll_fds[0].events = POLLIN;
-
-    poll_fds[1].fd = udp_cli_fd;
-    poll_fds[1].events = POLLIN;
+    poll_fds.push_back(pollfd{listenfd, POLLIN, 0});
+    poll_fds.push_back(pollfd{udp_cli_fd, POLLIN, 0});
+    poll_fds.push_back(pollfd{STDIN_FILENO, POLLIN, 0});
 
     while (1) {
-        int rc = poll(poll_fds, num_clients, -1);
+        int rc = poll(&poll_fds[0], poll_fds.size(), -1);
 		DIE(rc < 0, "poll");
 
-        for (int i = 0; i < num_clients; ++i) {
+        for (uint64_t i = 0; i < poll_fds.size(); ++i) {
             if (poll_fds[i].revents & POLLIN) {
                 if (poll_fds[i].fd == listenfd) {
                     /**
@@ -53,13 +52,23 @@ void server(int listenfd, int udp_cli_fd) {
                                (struct sockaddr*)&tcp_cli_addr, &tcp_cli_len);
                     DIE(tcp_cli_fd < 0, "accept() failed");
 
+                    int enable = 1;
+                    setsockopt(tcp_cli_fd, SOL_SOCKET, SO_REUSEADDR | TCP_NODELAY, &enable, sizeof(int));
+                    DIE(tcp_cli_fd < 0, "setsockopt failed");
+
+                    /**
+                     * Save the IP address and port for when the client wishes
+                     * to connect later on. They are used to print its
+                     * "credentials".
+                     */
+                    ips_ports[tcp_cli_fd] = std::make_pair(tcp_cli_addr.sin_addr,
+                                                           tcp_cli_addr.sin_port);
+
                     /**
                      * Add the newly created tcp client
                      * to the poll list of fds
                      */
-                    poll_fds[num_clients].fd = tcp_cli_fd;
-                    poll_fds[num_clients].events = POLLIN;
-                    ++num_clients;
+                    poll_fds.push_back(pollfd{tcp_cli_fd, POLLIN, 0});
                 } else if (poll_fds[i].fd == udp_cli_fd) {
                     char buff[2048];
 
@@ -101,32 +110,60 @@ void server(int listenfd, int udp_cli_fd) {
 
                     if (!message->c)
                         delete message;
+                } else if (poll_fds[i].fd == STDIN_FILENO) {
+                    char buff[MSG_MAXSIZE], *argv[MSG_MAXSIZE];
+
+                    fgets(buff, MSG_MAXSIZE, stdin);
+                    int argc = parse_by_whitespace(buff, argv);
+
+                    if (argc == 1 && !strcmp(argv[0], "exit"))
+                        for (auto & p : poll_fds) {
+                            close(p.fd);
+                            return;
+                        }
                 } else {
                     tcp_request_t request;
-                    int rc = recv_all(poll_fds[i].fd, &request, sizeof(request));
-
-                    if (!rc) {
-                        ids[request.id]->connected = false;
-                        /* TODO: Remove the fd entry */
-                    }
+                    recv_all(poll_fds[i].fd, &request, sizeof(request));
 
                     switch (request.type) {
                     case CONNECT: {
-                         /**
-                          * if there's already a connected client (with a
-                          * different fd), reject the current connection
-                          */
-                        if (ids.count(request.id) && ids[request.id]->connected) {
-                            printf("Client %s already connected.\n", request.id);
-                            close(poll_fds[i].fd);
+                        /**
+                         * if there's already a connected client (with a
+                         * different fd), reject the current connection
+                         */
+                        if (ids.count(request.id)) {
+                            if (ids[request.id]->connected) {
+                                printf("Client %s already connected.\n", request.id);
+                                close(poll_fds[i].fd);
+                            } else {
+                                printf("New client %s connected from %hu:%s.\n",
+                                       request.id,
+                                       ntohs(ips_ports[poll_fds[i].fd].second),
+                                       inet_ntoa(ips_ports[poll_fds[i].fd].first));
+
+                                auto client = ids[request.id];
+                                client->connected = true;
+
+                                /**
+                                 * Send messages from waiting queue, when the
+                                 * client gets connected again 
+                                 */
+                                for (auto &message : client->lost_messages) {
+                                    send_message(message, client->fd);
+
+                                    --message->c;
+
+                                    if (!message->c)
+                                        delete message;
+                                }
+                                client->lost_messages.clear();
+                            }
                         } else {
-                            struct sockaddr_in sin;
-                            socklen_t len = sizeof(sin);
+                            printf("New client %s connected from %hu:%s.\n",
+                                   request.id,
+                                   ntohs(ips_ports[poll_fds[i].fd].second),
+                                   inet_ntoa(ips_ports[poll_fds[i].fd].first));
 
-                            int rc = getsockname(poll_fds[i].fd, (struct sockaddr *)&sin, &len);
-                            DIE(rc < 0, "getsockname() failed");
-
-                            printf("New client %s connected from %s:%d.\n", request.id, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
                             tcp_client_t *new_client = new tcp_client_t;
                             new_client->fd = poll_fds[i].fd;
                             new_client->id = request.id;
@@ -162,7 +199,9 @@ void server(int listenfd, int udp_cli_fd) {
 
                     case EXIT: {
                         printf("Client %s disconnected.\n", request.id);
+                        ids[request.id]->connected = false;
                         close(poll_fds[i].fd);
+                        poll_fds.erase(poll_fds.begin() + i);
                     }
 
                     default:
@@ -180,6 +219,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+
     uint16_t server_port;
     int rc = sscanf(argv[1], "%hu", &server_port);
     DIE(rc != 1, "sscanf() failed");
@@ -192,12 +233,6 @@ int main(int argc, char* argv[]) {
 
     struct sockaddr_in serv_addr;
     socklen_t socket_len = sizeof(struct sockaddr_in);
-
-    int enable = 1;
-    if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &enable,
-            sizeof(int))
-        < 0)
-        perror("setsockopt(SO_REUSEADDR) failed");
 
     memset(&serv_addr, 0, socket_len);
     serv_addr.sin_family = AF_INET;
