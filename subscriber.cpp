@@ -21,6 +21,7 @@ void subscriber(int sockfd, char *id)
 {
     /* Signal that a new subscriber is connecting */
     tcp_request_t connect;
+    memset(&connect, 0, sizeof(connect));
     strcpy(connect.id, id);
     connect.type = CONNECT;
     send_all(sockfd, &connect, sizeof(connect));
@@ -69,9 +70,10 @@ void subscriber(int sockfd, char *id)
             argc = parse_by_whitespace(buf, argv);
             if (!strcmp(argv[0], "exit")) {
                 if (argc != 1) {
-                    // printf("\nWrong format for exit\n");
+                    printf("\nWrong format for exit\n");
                 } else {
                     tcp_request_t request;
+                    memset(&request, 0, sizeof(request));
                     strcpy(request.id, id);
                     request.type = EXIT;
 
@@ -82,9 +84,10 @@ void subscriber(int sockfd, char *id)
 
             if (!strcmp(argv[0], "subscribe")) {
                 if (argc != 3) {
-                    // printf("\nWrong format for subscribe\n");
+                    printf("\nWrong format for subscribe\n");
                 } else {
                     tcp_request_t request;
+                    memset(&request, 0, sizeof(request));
                     strcpy(request.id, id);
                     request.type = SUBSCRIBE;
                     strcpy(request.subscribe.topic, argv[1]);
@@ -98,11 +101,12 @@ void subscriber(int sockfd, char *id)
 
             if (!strcmp(argv[0], "unsubscribe")) {
                 if (argc != 2) {
-                    // printf("\nWrong format for unsubscribe\n");
+                    printf("\nWrong format for unsubscribe\n");
                 } else {
                     tcp_request_t request;
+                    memset(&request, 0, sizeof(request));
                     strcpy(request.id, id);
-                    request.type = SUBSCRIBE;
+                    request.type = UNSUBSCRIBE;
                     strcpy(request.subscribe.topic, argv[1]);
 
                     send_all(sockfd, &request, sizeof(request));

@@ -135,6 +135,8 @@ void server(int listenfd, int udp_cli_fd) {
                             if (ids[request.id]->connected) {
                                 printf("Client %s already connected.\n", request.id);
                                 close(poll_fds[i].fd);
+                                poll_fds.erase(poll_fds.begin() + i);
+                                ips_ports.erase(poll_fds[i].fd);
                             } else {
                                 printf("New client %s connected from %hu:%s.\n",
                                        request.id,
@@ -202,6 +204,7 @@ void server(int listenfd, int udp_cli_fd) {
                         ids[request.id]->connected = false;
                         close(poll_fds[i].fd);
                         poll_fds.erase(poll_fds.begin() + i);
+                        break;
                     }
 
                     default:

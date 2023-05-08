@@ -23,7 +23,7 @@ struct stored_message_t {
     int c;
     int len;
     char *buff;
-};
+} __attribute__ ((__packed__));
 
 struct tcp_client_t {
     int fd;
