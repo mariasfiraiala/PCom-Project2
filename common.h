@@ -1,11 +1,33 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
-#include <stdio.h>
+/**
+ * Sends bytes using multiple send() calls.
+ *
+ * @param sockfd
+ *  Socket fd on which the info is sent
+ * @param buf
+ *	Byte array containing the info to be sent
+ * @param len
+ *  Length of the buffer
+ * @return
+ *	The number of bytes sent
+ */
+int send_all(int sockfd, void *buff, int len);
 
-int send_all(int sockfd, void *buff, size_t len);
-
-int recv_all(int sockfd, void *buff, size_t len);
+/**
+ * Receives bytes using multiple recv() calls.
+ *
+ * @param sockfd
+ *  Socket fd on which the info is received
+ * @param buf
+ *	Byte array that will contain the info received
+ * @param len
+ *  Length of the buffer
+ * @return
+ *	The number of bytes received
+ */
+int recv_all(int sockfd, void *buff, int len);
 
 /* line max size */
 #define MSG_MAXSIZE 1024

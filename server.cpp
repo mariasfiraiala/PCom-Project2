@@ -22,8 +22,7 @@ std::map<std::string, tcp_client_t *> ids;
 std::map<std::string, std::vector<tcp_client_t *>> topics;
 std::map<int, std::pair<in_addr, uint16_t>> ips_ports;
 
-void send_message(stored_message_t *message, int fd)
-{
+void send_message(stored_message_t *message, int fd) {
     send_all(fd, &message->len, sizeof(message->len));
     send_all(fd, message->buff, message->len);
 }
@@ -53,7 +52,8 @@ void server(int listenfd, int udp_cli_fd) {
                     DIE(tcp_cli_fd < 0, "accept() failed");
 
                     int enable = 1;
-                    setsockopt(tcp_cli_fd, SOL_SOCKET, SO_REUSEADDR | TCP_NODELAY, &enable, sizeof(int));
+                    setsockopt(tcp_cli_fd, SOL_SOCKET,
+                            SO_REUSEADDR | TCP_NODELAY, &enable, sizeof(int));
                     DIE(tcp_cli_fd < 0, "setsockopt failed");
 
                     /**
@@ -70,12 +70,13 @@ void server(int listenfd, int udp_cli_fd) {
                      */
                     poll_fds.push_back(pollfd{tcp_cli_fd, POLLIN, 0});
                 } else if (poll_fds[i].fd == udp_cli_fd) {
-                    char buff[2048];
+                    char buff[2 * MSG_MAXSIZE];
 
                     struct sockaddr udp_cli_addr;
                     socklen_t udp_cli_len = sizeof(udp_cli_addr);
 
-                    int rc = recvfrom(poll_fds[i].fd, buff, 2048, 0, &udp_cli_addr, &udp_cli_len);
+                    int rc = recvfrom(poll_fds[i].fd, buff, 2 * MSG_MAXSIZE, 0,
+                                      &udp_cli_addr, &udp_cli_len);
 
                     stored_message_t *message = new stored_message_t;
                     message->len = rc;
@@ -127,17 +128,21 @@ void server(int listenfd, int udp_cli_fd) {
 
                     switch (request.type) {
                     case CONNECT: {
-                        /**
-                         * if there's already a connected client (with a
-                         * different fd), reject the current connection
-                         */
                         if (ids.count(request.id)) {
+                            /**
+                             * If there's already a connected client (with the
+                             * same id), reject the current connection
+                             */
                             if (ids[request.id]->connected) {
                                 printf("Client %s already connected.\n", request.id);
                                 close(poll_fds[i].fd);
                                 poll_fds.erase(poll_fds.begin() + i);
                                 ips_ports.erase(poll_fds[i].fd);
                             } else {
+                                /**
+                                 * If the client is stored in the id database,
+                                 * but it's not online, reconnect it
+                                 */
                                 printf("New client %s connected from %hu:%s.\n",
                                        request.id,
                                        ntohs(ips_ports[poll_fds[i].fd].second),
@@ -178,7 +183,7 @@ void server(int listenfd, int udp_cli_fd) {
 
                     case SUBSCRIBE: {
                         /**
-                         * if the client is at their first subscription,
+                         * If the client is at their first subscription,
                          * create an entry for them in the topics and ids
                          * database
                          */

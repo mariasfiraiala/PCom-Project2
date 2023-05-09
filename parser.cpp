@@ -7,16 +7,14 @@
 #include "parser.h"
 #include "common.h"
 
-int parse_by_whitespace(char *buf, char **argv)
-{
-	size_t argc = 0;
+int parse_by_whitespace(char *buf, char **argv) {
+	int argc = 0;
 	for (char *p = strtok(buf, " \t\n"); p; p = strtok(NULL, " \t\n"))
 		argv[argc++] = p;
 	return argc;
 }
 
-void print_int(char *buff, char *topic)
-{
+void print_int(char *buff, char *topic) {
 	int8_t sign = *buff;
 	buff += sizeof(sign);
 
@@ -28,15 +26,13 @@ void print_int(char *buff, char *topic)
 	printf("%s - INT - %ld\n", topic, nr);
 }
 
-void print_short_real(char *buff, char *topic)
-{
+void print_short_real(char *buff, char *topic) {
 	float nr = ntohs(*(u_int16_t *)buff) / (float)100;
 
 	printf("%s - SHORT_REAL - %.2f\n", topic, nr);
 }
 
-void print_float(char *buff, char *topic)
-{
+void print_float(char *buff, char *topic) {
 	int8_t sign = *buff;
 	buff += sizeof(sign);
 
@@ -51,8 +47,7 @@ void print_float(char *buff, char *topic)
 	printf("%s - FLOAT - %f\n", topic, nr / (float) pow(10, pow10));
 }
 
-void parse_subscription(char *buff)
-{
+void parse_subscription(char *buff) {
 	char topic[51] = { 0 };
 
 	memcpy(topic, buff, 50);

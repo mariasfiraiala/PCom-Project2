@@ -17,9 +17,11 @@
 #include "common.h"
 #include "utils.h"
 
-void subscriber(int sockfd, char *id)
-{
-    /* Signal that a new subscriber is connecting */
+void subscriber(int sockfd, char *id) {
+    /**
+     * Signal that a new subscriber is connecting by sending
+     * a connection packet. This is default behaviour for all clients.
+     */
     tcp_request_t connect;
     memset(&connect, 0, sizeof(connect));
     strcpy(connect.id, id);
@@ -49,7 +51,7 @@ void subscriber(int sockfd, char *id)
         /* The server response */
         if (pfds[1].revents & POLLIN) {
             int len;
-            char buff[2048];
+            char buff[2 * MSG_MAXSIZE];
 
             int rc = recv_all(sockfd, &len, sizeof(len));
             if (!rc)
@@ -59,15 +61,16 @@ void subscriber(int sockfd, char *id)
 
             /* Print the message received from the UDP client */
             parse_subscription(buff);
-        } else if ((pfds[0].revents & POLLIN) != 0) {
+        } else if (pfds[0].revents & POLLIN) {
             /* Subscriber sends a request */
             fgets(buf, sizeof(buf), stdin);
 
-            /* If the subscriber wishes to disconnect */
-            char *argv[BUFSIZE];
+            /* Parse the input */
+            char *argv[MSG_MAXSIZE];
             int argc;
-
             argc = parse_by_whitespace(buf, argv);
+
+            /* If the subscriber wishes to disconnect */
             if (!strcmp(argv[0], "exit")) {
                 if (argc != 1) {
                     printf("\nWrong format for exit\n");
@@ -82,6 +85,7 @@ void subscriber(int sockfd, char *id)
                 }
             }
 
+            /* If the subscriber wishes to subscribe */
             if (!strcmp(argv[0], "subscribe")) {
                 if (argc != 3) {
                     printf("\nWrong format for subscribe\n");
@@ -99,6 +103,7 @@ void subscriber(int sockfd, char *id)
                 }
             }
 
+            /* If the subscriber wishes to unsubscribe */
             if (!strcmp(argv[0], "unsubscribe")) {
                 if (argc != 2) {
                     printf("\nWrong format for unsubscribe\n");
@@ -118,10 +123,10 @@ void subscriber(int sockfd, char *id)
     }
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     if (argc != 4) {
-        fprintf(stderr, "\nUsage: %s <ID_CLIENT> <IP_SERVER> <PORT_SERVER>\n", argv[0]);
+        fprintf(stderr, "\nUsage: %s <ID_CLIENT> <IP_SERVER> <PORT_SERVER>\n",
+                argv[0]);
         return 1;
     }
 
@@ -139,7 +144,8 @@ int main(int argc, char *argv[])
     socklen_t socket_len = sizeof(struct sockaddr_in);
 
     int enable = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR | TCP_NODELAY, &enable, sizeof(int));
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR | TCP_NODELAY, &enable,
+               sizeof(int));
     DIE(sockfd < 0, "setsockopt() failed");
 
     memset(&serv_addr, 0, socket_len);
